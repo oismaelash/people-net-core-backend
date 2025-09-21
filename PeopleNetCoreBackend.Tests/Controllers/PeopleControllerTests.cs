@@ -123,5 +123,246 @@ namespace PeopleNetCoreBackend.Tests.Controllers
             Assert.Equal(30, cpfs.Count);
             Assert.Equal(30, cpfs.Distinct().Count()); // All CPFs should be unique
         }
+
+        // GET by CPF tests
+        [Fact]
+        public async Task GetPerson_WithValidCpf_ReturnsPerson()
+        {
+            // Act
+            var response = await _client.GetAsync("/api/people/12345678901");
+            var content = await response.Content.ReadAsStringAsync();
+
+            // Assert
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            
+            var person = JsonSerializer.Deserialize<Person>(content, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            Assert.NotNull(person);
+            Assert.Equal("12345678901", person.Cpf);
+            Assert.Equal("João Silva", person.Name);
+        }
+
+        [Fact]
+        public async Task GetPerson_WithInvalidCpf_ReturnsNotFound()
+        {
+            // Act
+            var response = await _client.GetAsync("/api/people/99999999999");
+
+            // Assert
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        // POST tests
+        [Fact]
+        public async Task CreatePerson_WithValidData_ReturnsCreated()
+        {
+            // Arrange
+            var newPerson = new Person
+            {
+                Cpf = "99999999999",
+                Name = "Test Person",
+                Genre = "Masculino",
+                Address = "Test Address, 123",
+                Age = 25,
+                Neighborhood = "Test Neighborhood",
+                State = "Test State"
+            };
+
+            var json = JsonSerializer.Serialize(newPerson);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            // Act
+            var response = await _client.PostAsync("/api/people", content);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            
+            var responseContent = await response.Content.ReadAsStringAsync();
+            var createdPerson = JsonSerializer.Deserialize<Person>(responseContent, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            Assert.NotNull(createdPerson);
+            Assert.Equal(newPerson.Cpf, createdPerson.Cpf);
+            Assert.Equal(newPerson.Name, createdPerson.Name);
+        }
+
+        [Fact]
+        public async Task CreatePerson_WithExistingCpf_ReturnsBadRequest()
+        {
+            // Arrange
+            var existingPerson = new Person
+            {
+                Cpf = "12345678901", // This CPF already exists in seeded data
+                Name = "Test Person",
+                Genre = "Masculino",
+                Address = "Test Address, 123",
+                Age = 25,
+                Neighborhood = "Test Neighborhood",
+                State = "Test State"
+            };
+
+            var json = JsonSerializer.Serialize(existingPerson);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            // Act
+            var response = await _client.PostAsync("/api/people", content);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task CreatePerson_WithInvalidData_ReturnsBadRequest()
+        {
+            // Arrange
+            var invalidPerson = new Person
+            {
+                Cpf = "", // Invalid - empty CPF
+                Name = "", // Invalid - empty name
+                Genre = "",
+                Address = "",
+                Age = -1, // Invalid - negative age
+                Neighborhood = "",
+                State = ""
+            };
+
+            var json = JsonSerializer.Serialize(invalidPerson);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            // Act
+            var response = await _client.PostAsync("/api/people", content);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        // PUT tests
+        [Fact]
+        public async Task UpdatePerson_WithValidData_ReturnsOk()
+        {
+            // Arrange
+            var updatedPerson = new Person
+            {
+                Cpf = "12345678901",
+                Name = "João Silva Updated",
+                Genre = "Masculino",
+                Address = "Rua das Flores, 123",
+                Age = 31,
+                Neighborhood = "Centro",
+                State = "São Paulo"
+            };
+
+            var json = JsonSerializer.Serialize(updatedPerson);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            // Act
+            var response = await _client.PutAsync("/api/people/12345678901", content);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            
+            var responseContent = await response.Content.ReadAsStringAsync();
+            var resultPerson = JsonSerializer.Deserialize<Person>(responseContent, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            Assert.NotNull(resultPerson);
+            Assert.Equal("João Silva Updated", resultPerson.Name);
+            Assert.Equal(31, resultPerson.Age);
+        }
+
+        [Fact]
+        public async Task UpdatePerson_WithCpfMismatch_ReturnsBadRequest()
+        {
+            // Arrange
+            var person = new Person
+            {
+                Cpf = "99999999999", // Different from URL parameter
+                Name = "Test Person",
+                Genre = "Masculino",
+                Address = "Test Address, 123",
+                Age = 25,
+                Neighborhood = "Test Neighborhood",
+                State = "Test State"
+            };
+
+            var json = JsonSerializer.Serialize(person);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            // Act
+            var response = await _client.PutAsync("/api/people/12345678901", content);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task UpdatePerson_WithNonExistentCpf_ReturnsNotFound()
+        {
+            // Arrange
+            var person = new Person
+            {
+                Cpf = "99999999999",
+                Name = "Test Person",
+                Genre = "Masculino",
+                Address = "Test Address, 123",
+                Age = 25,
+                Neighborhood = "Test Neighborhood",
+                State = "Test State"
+            };
+
+            var json = JsonSerializer.Serialize(person);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            // Act
+            var response = await _client.PutAsync("/api/people/99999999999", content);
+
+            // Assert
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        // DELETE tests
+        [Fact]
+        public async Task DeletePerson_WithValidCpf_ReturnsNoContent()
+        {
+            // Act
+            var response = await _client.DeleteAsync("/api/people/12345678901");
+
+            // Assert
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task DeletePerson_WithNonExistentCpf_ReturnsNotFound()
+        {
+            // Act
+            var response = await _client.DeleteAsync("/api/people/99999999999");
+
+            // Assert
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task DeletePerson_ThenGetPerson_ReturnsNotFound()
+        {
+            // Arrange
+            var cpfToDelete = "12345678901";
+
+            // Act - Delete the person
+            var deleteResponse = await _client.DeleteAsync($"/api/people/{cpfToDelete}");
+            Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+            // Act - Try to get the deleted person
+            var getResponse = await _client.GetAsync($"/api/people/{cpfToDelete}");
+
+            // Assert
+            Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+        }
     }
 }

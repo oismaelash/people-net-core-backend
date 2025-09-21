@@ -11,7 +11,12 @@ A RESTful WebAPI built with ASP.NET Core 7.0 and Entity Framework Core that expo
 
 ## Features
 
-- GET `/api/people` endpoint that returns 30 mocked people
+- Complete CRUD operations for people management
+- GET `/api/people` endpoint that returns all people
+- GET `/api/people/{cpf}` endpoint to retrieve a specific person
+- POST `/api/people` endpoint to create a new person
+- PUT `/api/people/{cpf}` endpoint to update an existing person
+- DELETE `/api/people/{cpf}` endpoint to remove a person
 - In-Memory database with seeded data
 - Comprehensive unit tests
 - Swagger documentation
@@ -82,6 +87,115 @@ Returns a list of all people.
   ...
 ]
 ```
+
+### GET /api/people/{cpf}
+
+Returns a specific person by CPF.
+
+**Parameters:**
+- `cpf` (string): The CPF of the person to retrieve
+
+**Response:**
+```json
+{
+  "cpf": "12345678901",
+  "name": "João Silva",
+  "genre": "Masculino",
+  "address": "Rua das Flores, 123",
+  "age": 30,
+  "neighborhood": "Centro",
+  "state": "São Paulo"
+}
+```
+
+**Status Codes:**
+- `200 OK`: Person found and returned
+- `404 Not Found`: Person with specified CPF not found
+
+### POST /api/people
+
+Creates a new person.
+
+**Request Body:**
+```json
+{
+  "cpf": "99999999999",
+  "name": "Maria Santos",
+  "genre": "Feminino",
+  "address": "Avenida Principal, 456",
+  "age": 28,
+  "neighborhood": "Vila Nova",
+  "state": "Rio de Janeiro"
+}
+```
+
+**Response:**
+```json
+{
+  "cpf": "99999999999",
+  "name": "Maria Santos",
+  "genre": "Feminino",
+  "address": "Avenida Principal, 456",
+  "age": 28,
+  "neighborhood": "Vila Nova",
+  "state": "Rio de Janeiro"
+}
+```
+
+**Status Codes:**
+- `201 Created`: Person successfully created
+- `400 Bad Request`: Invalid data or CPF already exists
+
+### PUT /api/people/{cpf}
+
+Updates an existing person.
+
+**Parameters:**
+- `cpf` (string): The CPF of the person to update
+
+**Request Body:**
+```json
+{
+  "cpf": "12345678901",
+  "name": "João Silva Updated",
+  "genre": "Masculino",
+  "address": "Rua das Flores, 123",
+  "age": 31,
+  "neighborhood": "Centro",
+  "state": "São Paulo"
+}
+```
+
+**Response:**
+```json
+{
+  "cpf": "12345678901",
+  "name": "João Silva Updated",
+  "genre": "Masculino",
+  "address": "Rua das Flores, 123",
+  "age": 31,
+  "neighborhood": "Centro",
+  "state": "São Paulo"
+}
+```
+
+**Status Codes:**
+- `200 OK`: Person successfully updated
+- `400 Bad Request`: Invalid data or CPF mismatch
+- `404 Not Found`: Person with specified CPF not found
+
+### DELETE /api/people/{cpf}
+
+Deletes a person by CPF.
+
+**Parameters:**
+- `cpf` (string): The CPF of the person to delete
+
+**Response:** No content
+
+**Status Codes:**
+- `204 No Content`: Person successfully deleted
+- `404 Not Found`: Person with specified CPF not found
 
 ## Project Structure
 
