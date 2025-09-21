@@ -1,13 +1,14 @@
 # People Net Core Backend
 
-A RESTful WebAPI built with ASP.NET Core 7.0 and Entity Framework Core that exposes a GET endpoint to retrieve a list of people.
+A RESTful WebAPI built with ASP.NET Core 8.0 and Entity Framework Core that provides comprehensive CRUD operations for people management.
 
 ## Tech Stack
 
-- **ASP.NET Core 7.0**
+- **ASP.NET Core 8.0**
 - **Entity Framework Core** (In-Memory provider)
 - **xUnit** for unit testing
 - **Swagger/OpenAPI** for API documentation
+- **Docker** for containerization
 
 ## Features
 
@@ -40,10 +41,13 @@ Each person has the following properties:
 
 ### Prerequisites
 
-- .NET 7.0 SDK or later
+- .NET 8.0 SDK or later
 - Visual Studio 2022, VS Code, or any compatible IDE
+- Docker (optional, for containerized deployment)
 
 ### Running the Application
+
+#### Option 1: Using .NET CLI
 
 1. Clone the repository
 2. Navigate to the project directory
@@ -58,6 +62,43 @@ Each person has the following properties:
 5. Open your browser and navigate to:
    - API: `https://localhost:7000/api/people`
    - Swagger UI: `https://localhost:7000/swagger`
+
+#### Option 2: Using Docker
+
+1. Clone the repository
+2. Navigate to the project directory
+3. Build the Docker image:
+   ```bash
+   docker build -t people-net-core-backend .
+   ```
+4. Run the container:
+   ```bash
+   docker run -p 5000:5000 people-net-core-backend
+   ```
+5. Open your browser and navigate to:
+   - API: `http://localhost:5000/api/people`
+   - Swagger UI: `http://localhost:5000/swagger`
+
+#### Docker Compose (Optional)
+
+For easier development, you can use Docker Compose:
+
+1. Create a `docker-compose.yml` file:
+   ```yaml
+   version: '3.8'
+   services:
+     people-api:
+       build: .
+       ports:
+         - "5000:5000"
+       environment:
+         - ASPNETCORE_ENVIRONMENT=Development
+   ```
+
+2. Run with Docker Compose:
+   ```bash
+   docker-compose up --build
+   ```
 
 ### Running Tests
 
@@ -231,6 +272,9 @@ PeopleNetCoreBackend/
 │   │   └── PeopleDbContextTests.cs
 │   └── Models/
 │       └── PersonTests.cs
+├── Dockerfile
+├── .dockerignore
+├── PeopleNetCoreBackend.csproj
 ├── Program.cs
 └── README.md
 ```
@@ -254,6 +298,41 @@ Test coverage includes:
 
 The application uses Entity Framework Core with an In-Memory database provider. The database is automatically seeded with 30 people when the application starts.
 
+## Docker Configuration
+
+The application includes a multi-stage Dockerfile optimized for production:
+
+- **Build Stage**: Uses .NET 8.0 SDK to build and publish the application
+- **Runtime Stage**: Uses .NET 8.0 runtime for a smaller production image
+- **Security**: Runs as a non-root user for enhanced security
+- **Ports**: Exposes ports 5000 and 5001
+- **Environment**: Configured for production by default
+
+### Docker Commands
+
+```bash
+# Build the image
+docker build -t people-net-core-backend .
+
+# Run the container
+docker run -p 5000:5000 people-net-core-backend
+
+# Run in development mode
+docker run -p 5000:5000 -e ASPNETCORE_ENVIRONMENT=Development people-net-core-backend
+
+# Run in detached mode
+docker run -d -p 5000:5000 --name people-api people-net-core-backend
+
+# View logs
+docker logs people-api
+
+# Stop the container
+docker stop people-api
+
+# Remove the container
+docker rm people-api
+```
+
 ## Development
 
 To add new features or modify existing ones:
@@ -266,6 +345,11 @@ To add new features or modify existing ones:
 3. Run the application to test manually:
    ```bash
    dotnet run
+   ```
+4. Test with Docker (optional):
+   ```bash
+   docker build -t people-net-core-backend .
+   docker run -p 5000:5000 people-net-core-backend
    ```
 
 ## License
