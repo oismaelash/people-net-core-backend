@@ -28,10 +28,11 @@ namespace PeopleNetCoreBackend.Tests.Controllers
                         services.Remove(descriptor);
                     }
 
-                    // Add In-Memory database for testing
+                    // Add In-Memory database for testing with unique name
+                    var dbName = Guid.NewGuid().ToString();
                     services.AddDbContext<PeopleDbContext>(options =>
                     {
-                        options.UseInMemoryDatabase("TestDb");
+                        options.UseInMemoryDatabase(dbName);
                     });
                 });
             });
@@ -71,14 +72,19 @@ namespace PeopleNetCoreBackend.Tests.Controllers
             // Act
             var response = await _client.GetAsync("/api/people");
             var content = await response.Content.ReadAsStringAsync();
-            var people = JsonSerializer.Deserialize<List<Person>>(content, new JsonSerializerOptions
+            var pagedResult = JsonSerializer.Deserialize<PagedResult<Person>>(content, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
 
             // Assert
-            Assert.NotNull(people);
-            Assert.Equal(30, people.Count);
+            Assert.NotNull(pagedResult);
+            Assert.NotNull(pagedResult.Data);
+            Assert.Equal(10, pagedResult.Data.Count()); // Default page size is 10
+            Assert.True(pagedResult.TotalCount >= 10); // At least 10 people (seeded data)
+            Assert.True(pagedResult.TotalPages >= 1);
+            Assert.Equal(1, pagedResult.Page);
+            Assert.Equal(10, pagedResult.PageSize);
         }
 
         [Fact]
@@ -87,16 +93,17 @@ namespace PeopleNetCoreBackend.Tests.Controllers
             // Act
             var response = await _client.GetAsync("/api/people");
             var content = await response.Content.ReadAsStringAsync();
-            var people = JsonSerializer.Deserialize<List<Person>>(content, new JsonSerializerOptions
+            var pagedResult = JsonSerializer.Deserialize<PagedResult<Person>>(content, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
 
             // Assert
-            Assert.NotNull(people);
-            Assert.NotEmpty(people);
+            Assert.NotNull(pagedResult);
+            Assert.NotNull(pagedResult.Data);
+            Assert.NotEmpty(pagedResult.Data);
 
-            var firstPerson = people.First();
+            var firstPerson = pagedResult.Data.First();
             Assert.NotNull(firstPerson.Cpf);
             Assert.NotNull(firstPerson.Name);
             Assert.NotNull(firstPerson.Genre);
@@ -112,24 +119,118 @@ namespace PeopleNetCoreBackend.Tests.Controllers
             // Act
             var response = await _client.GetAsync("/api/people");
             var content = await response.Content.ReadAsStringAsync();
-            var people = JsonSerializer.Deserialize<List<Person>>(content, new JsonSerializerOptions
+            var pagedResult = JsonSerializer.Deserialize<PagedResult<Person>>(content, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
 
             // Assert
-            Assert.NotNull(people);
-            var cpfs = people.Select(p => p.Cpf).ToList();
-            Assert.Equal(30, cpfs.Count);
-            Assert.Equal(30, cpfs.Distinct().Count()); // All CPFs should be unique
+            Assert.NotNull(pagedResult);
+            Assert.NotNull(pagedResult.Data);
+            var cpfs = pagedResult.Data.Select(p => p.Cpf).ToList();
+            Assert.Equal(10, cpfs.Count); // Default page size
+            Assert.Equal(10, cpfs.Distinct().Count()); // All CPFs in this page should be unique
+        }
+
+        // Pagination tests
+        [Fact]
+        public async Task GetPeople_WithPageParameter_ReturnsCorrectPage()
+        {
+            // Act
+            var response = await _client.GetAsync("/api/people?page=2&pageSize=5");
+            var content = await response.Content.ReadAsStringAsync();
+            var pagedResult = JsonSerializer.Deserialize<PagedResult<Person>>(content, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            // Assert
+            Assert.NotNull(pagedResult);
+            Assert.Equal(2, pagedResult.Page);
+            Assert.Equal(5, pagedResult.PageSize);
+            Assert.True(pagedResult.TotalCount >= 10); // At least 10 people (seeded data)
+            Assert.True(pagedResult.TotalPages >= 2);
+            Assert.True(pagedResult.HasPrevious);
+            Assert.Equal(5, pagedResult.Data.Count());
+        }
+
+        [Fact]
+        public async Task GetPeople_WithInvalidPage_ReturnsBadRequest()
+        {
+            // Act
+            var response = await _client.GetAsync("/api/people?page=0");
+
+            // Assert
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetPeople_WithInvalidPageSize_ReturnsBadRequest()
+        {
+            // Act
+            var response = await _client.GetAsync("/api/people?pageSize=101");
+
+            // Assert
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetPeople_WithNegativePageSize_ReturnsBadRequest()
+        {
+            // Act
+            var response = await _client.GetAsync("/api/people?pageSize=-1");
+
+            // Assert
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetPeople_LastPage_ShowsCorrectHasNext()
+        {
+            // First, get the total count to determine the last page
+            var firstResponse = await _client.GetAsync("/api/people?page=1&pageSize=10");
+            var firstContent = await firstResponse.Content.ReadAsStringAsync();
+            var firstResult = JsonSerializer.Deserialize<PagedResult<Person>>(firstContent, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            var lastPage = firstResult.TotalPages;
+
+            // Act - get the last page
+            var response = await _client.GetAsync($"/api/people?page={lastPage}&pageSize=10");
+            var content = await response.Content.ReadAsStringAsync();
+            var pagedResult = JsonSerializer.Deserialize<PagedResult<Person>>(content, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            // Assert
+            Assert.NotNull(pagedResult);
+            Assert.Equal(lastPage, pagedResult.Page);
+            Assert.False(pagedResult.HasNext);
+            if (lastPage > 1)
+            {
+                Assert.True(pagedResult.HasPrevious);
+            }
         }
 
         // GET by CPF tests
         [Fact]
         public async Task GetPerson_WithValidCpf_ReturnsPerson()
         {
+            // First, get a valid CPF from the list
+            var peopleResponse = await _client.GetAsync("/api/people?page=1&pageSize=1");
+            var peopleContent = await peopleResponse.Content.ReadAsStringAsync();
+            var pagedResult = JsonSerializer.Deserialize<PagedResult<Person>>(peopleContent, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            
+            var validCpf = pagedResult.Data.First().Cpf;
+
             // Act
-            var response = await _client.GetAsync("/api/people/12345678901");
+            var response = await _client.GetAsync($"/api/people/{validCpf}");
             var content = await response.Content.ReadAsStringAsync();
 
             // Assert
@@ -141,14 +242,14 @@ namespace PeopleNetCoreBackend.Tests.Controllers
             });
 
             Assert.NotNull(person);
-            Assert.Equal("12345678901", person.Cpf);
-            Assert.Equal("João Silva", person.Name);
+            Assert.Equal(validCpf, person.Cpf);
+            Assert.NotEmpty(person.Name);
         }
 
         [Fact]
         public async Task GetPerson_WithInvalidCpf_ReturnsNotFound()
         {
-            // Act
+            // Act - use a CPF that definitely doesn't exist
             var response = await _client.GetAsync("/api/people/99999999999");
 
             // Assert
@@ -194,10 +295,20 @@ namespace PeopleNetCoreBackend.Tests.Controllers
         [Fact]
         public async Task CreatePerson_WithExistingCpf_ReturnsBadRequest()
         {
+            // First, get an existing CPF from the list
+            var peopleResponse = await _client.GetAsync("/api/people?page=1&pageSize=1");
+            var peopleContent = await peopleResponse.Content.ReadAsStringAsync();
+            var pagedResult = JsonSerializer.Deserialize<PagedResult<Person>>(peopleContent, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            
+            var existingCpf = pagedResult.Data.First().Cpf;
+
             // Arrange
             var existingPerson = new Person
             {
-                Cpf = "12345678901", // This CPF already exists in seeded data
+                Cpf = existingCpf, // This CPF already exists in seeded data
                 Name = "Test Person",
                 Genre = "Masculino",
                 Address = "Test Address, 123",
@@ -245,23 +356,33 @@ namespace PeopleNetCoreBackend.Tests.Controllers
         [Fact]
         public async Task UpdatePerson_WithValidData_ReturnsOk()
         {
+            // First, get a valid CPF from the list
+            var peopleResponse = await _client.GetAsync("/api/people?page=1&pageSize=1");
+            var peopleContent = await peopleResponse.Content.ReadAsStringAsync();
+            var pagedResult = JsonSerializer.Deserialize<PagedResult<Person>>(peopleContent, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            
+            var validCpf = pagedResult.Data.First().Cpf;
+
             // Arrange
             var updatedPerson = new Person
             {
-                Cpf = "12345678901",
-                Name = "João Silva Updated",
+                Cpf = validCpf,
+                Name = "Updated Name",
                 Genre = "Masculino",
-                Address = "Rua das Flores, 123",
+                Address = "Updated Address, 123",
                 Age = 31,
-                Neighborhood = "Centro",
-                State = "São Paulo"
+                Neighborhood = "Updated Neighborhood",
+                State = "Updated State"
             };
 
             var json = JsonSerializer.Serialize(updatedPerson);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
             // Act
-            var response = await _client.PutAsync("/api/people/12345678901", content);
+            var response = await _client.PutAsync($"/api/people/{validCpf}", content);
 
             // Assert
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -273,13 +394,23 @@ namespace PeopleNetCoreBackend.Tests.Controllers
             });
 
             Assert.NotNull(resultPerson);
-            Assert.Equal("João Silva Updated", resultPerson.Name);
+            Assert.Equal("Updated Name", resultPerson.Name);
             Assert.Equal(31, resultPerson.Age);
         }
 
         [Fact]
         public async Task UpdatePerson_WithCpfMismatch_ReturnsBadRequest()
         {
+            // First, get a valid CPF from the list
+            var peopleResponse = await _client.GetAsync("/api/people?page=1&pageSize=1");
+            var peopleContent = await peopleResponse.Content.ReadAsStringAsync();
+            var pagedResult = JsonSerializer.Deserialize<PagedResult<Person>>(peopleContent, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            
+            var validCpf = pagedResult.Data.First().Cpf;
+
             // Arrange
             var person = new Person
             {
@@ -296,7 +427,7 @@ namespace PeopleNetCoreBackend.Tests.Controllers
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
             // Act
-            var response = await _client.PutAsync("/api/people/12345678901", content);
+            var response = await _client.PutAsync($"/api/people/{validCpf}", content);
 
             // Assert
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -331,8 +462,18 @@ namespace PeopleNetCoreBackend.Tests.Controllers
         [Fact]
         public async Task DeletePerson_WithValidCpf_ReturnsNoContent()
         {
+            // First, get a valid CPF from the list
+            var peopleResponse = await _client.GetAsync("/api/people?page=1&pageSize=1");
+            var peopleContent = await peopleResponse.Content.ReadAsStringAsync();
+            var pagedResult = JsonSerializer.Deserialize<PagedResult<Person>>(peopleContent, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            
+            var validCpf = pagedResult.Data.First().Cpf;
+
             // Act
-            var response = await _client.DeleteAsync("/api/people/12345678901");
+            var response = await _client.DeleteAsync($"/api/people/{validCpf}");
 
             // Assert
             Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -351,8 +492,15 @@ namespace PeopleNetCoreBackend.Tests.Controllers
         [Fact]
         public async Task DeletePerson_ThenGetPerson_ReturnsNotFound()
         {
-            // Arrange
-            var cpfToDelete = "12345678901";
+            // First, get a valid CPF from the list
+            var peopleResponse = await _client.GetAsync("/api/people?page=1&pageSize=1");
+            var peopleContent = await peopleResponse.Content.ReadAsStringAsync();
+            var pagedResult = JsonSerializer.Deserialize<PagedResult<Person>>(peopleContent, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            
+            var cpfToDelete = pagedResult.Data.First().Cpf;
 
             // Act - Delete the person
             var deleteResponse = await _client.DeleteAsync($"/api/people/{cpfToDelete}");

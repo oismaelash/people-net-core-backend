@@ -22,18 +22,53 @@ namespace PeopleNetCoreBackend.Controllers
         }
 
         /// <summary>
-        /// Retrieves all people from the database
+        /// Retrieves people from the database with pagination
         /// </summary>
-        /// <returns>A list of all people</returns>
-        /// <response code="200">Returns the list of people</response>
+        /// <param name="page">Page number (1-based, default: 1)</param>
+        /// <param name="pageSize">Number of items per page (default: 10, max: 100)</param>
+        /// <returns>A paginated list of people</returns>
+        /// <response code="200">Returns the paginated list of people</response>
+        /// <response code="400">If pagination parameters are invalid</response>
         /// <response code="500">If there was an internal server error</response>
         [HttpGet]
-        [ProducesResponseType(typeof(IEnumerable<Person>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(PagedResult<Person>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<IEnumerable<Person>>> GetPeople()
+        public async Task<ActionResult<PagedResult<Person>>> GetPeople(int page = 1, int pageSize = 10)
         {
-            var people = await _context.People.ToListAsync();
-            return Ok(people);
+            // Validate pagination parameters
+            if (page < 1)
+            {
+                return BadRequest("Page number must be greater than 0.");
+            }
+
+            if (pageSize < 1 || pageSize > 100)
+            {
+                return BadRequest("Page size must be between 1 and 100.");
+            }
+
+            // Get total count
+            var totalCount = await _context.People.CountAsync();
+
+            // Calculate skip value
+            var skip = (page - 1) * pageSize;
+
+            // Get paginated data
+            var people = await _context.People
+                .Skip(skip)
+                .Take(pageSize)
+                .ToListAsync();
+
+            // Create paginated result
+            var result = new PagedResult<Person>
+            {
+                Data = people,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount
+            };
+
+            return Ok(result);
         }
 
         /// <summary>

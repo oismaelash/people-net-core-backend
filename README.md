@@ -12,11 +12,12 @@ A RESTful WebAPI built with ASP.NET Core 7.0 and Entity Framework Core that expo
 ## Features
 
 - Complete CRUD operations for people management
-- GET `/api/people` endpoint that returns all people
+- GET `/api/people` endpoint with pagination support
 - GET `/api/people/{cpf}` endpoint to retrieve a specific person
 - POST `/api/people` endpoint to create a new person
 - PUT `/api/people/{cpf}` endpoint to update an existing person
 - DELETE `/api/people/{cpf}` endpoint to remove a person
+- Pagination with configurable page size (default: 10, max: 100)
 - In-Memory database with seeded data
 - Comprehensive unit tests
 - Swagger documentation
@@ -70,23 +71,39 @@ dotnet test
 
 ### GET /api/people
 
-Returns a list of all people.
+Returns a paginated list of people.
+
+**Parameters:**
+- `page` (optional): Page number (1-based, default: 1)
+- `pageSize` (optional): Number of items per page (default: 10, max: 100)
 
 **Response:**
 ```json
-[
-  {
-    "cpf": "12345678901",
-    "name": "João Silva",
-    "genre": "Masculino",
-    "address": "Rua das Flores, 123",
-    "age": 30,
-    "neighborhood": "Centro",
-    "state": "São Paulo"
-  },
-  ...
-]
+{
+  "data": [
+    {
+      "cpf": "12345678901",
+      "name": "João Silva",
+      "genre": "Masculino",
+      "address": "Rua das Flores, 123",
+      "age": 30,
+      "neighborhood": "Centro",
+      "state": "São Paulo"
+    },
+    ...
+  ],
+  "page": 1,
+  "pageSize": 10,
+  "totalCount": 30,
+  "totalPages": 3,
+  "hasPrevious": false,
+  "hasNext": true
+}
 ```
+
+**Status Codes:**
+- `200 OK`: People found and returned
+- `400 Bad Request`: Invalid pagination parameters
 
 ### GET /api/people/{cpf}
 
